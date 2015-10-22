@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -40,9 +41,13 @@ func PrintErr(err error) {
 
 func run(s string) {
 	cmd := exec.Command("mtr", "-r", s)
-	stdout, _ := cmd.CombinedOutput()
-	reader := strings.NewReader(string(stdout))
-	scanner := bufio.NewScanner(reader)
+	stdout, err := cmd.StdoutPipe()
+	stderr, err := cmd.StderrPipe()
+	cmd.Start()
+
+	go io.Copy(os.Stdout, stderr)
+
+	scanner := bufio.NewScanner(stdout)
 	//skip first 2 line
 	scanner.Scan()
 	scanner.Scan()
@@ -89,6 +94,7 @@ func run(s string) {
 
 	}
 	resultmap[s] = items
+	cmd.Wait()
 	waitgroup.Done()
 }
 
