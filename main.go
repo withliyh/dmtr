@@ -43,7 +43,7 @@ func PrintErr(err error) {
 }
 
 func run(s string) {
-	fmt.Println("mtr -r %s", s)
+	fmt.Println("mtr -r ", s)
 	cmd := exec.Command("mtr", "-r", s)
 	stdout, err := cmd.StdoutPipe()
 	stderr, err := cmd.StderrPipe()
