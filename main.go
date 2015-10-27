@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var waitgroup sync.WaitGroup
 var resultmap map[string][]Entry
 var err error
+var rsleep = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type Entry struct {
 	Ord   int
@@ -40,6 +43,7 @@ func PrintErr(err error) {
 }
 
 func run(s string) {
+	fmt.Println("mtr -r %s", s)
 	cmd := exec.Command("mtr", "-r", s)
 	stdout, err := cmd.StdoutPipe()
 	stderr, err := cmd.StderrPipe()
@@ -132,6 +136,7 @@ func main() {
 	for _, s := range ss {
 		waitgroup.Add(1)
 		go run(s)
+		time.Sleep(5 * time.Second)
 	}
 
 	waitgroup.Wait()
