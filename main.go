@@ -4,103 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"math/rand"
 	"os"
-	"os/exec"
-	"strconv"
+	"sort"
 	"strings"
 	"sync"
-	"time"
+
+	"github.com/withliyh/dmtr/core"
 )
-
-var waitgroup sync.WaitGroup
-var resultmap map[string][]Entry
-var err error
-var rsleep = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-type Entry struct {
-	Ord   int
-	Host  string
-	Lost  float64
-	Snt   int
-	Last  float64
-	Avg   float64
-	Best  float64
-	Wrst  float64
-	Stdev float64
-}
-
-func (this *Entry) String() string {
-	return fmt.Sprintf("%d %v %v %s", this.Ord, this.Host, this.Lost, "\n")
-}
-
-func PrintErr(err error) {
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func run(s string) {
-	fmt.Println("mtr -r ", s)
-	cmd := exec.Command("mtr", "-r", s)
-	stdout, err := cmd.StdoutPipe()
-	stderr, err := cmd.StderrPipe()
-	cmd.Start()
-
-	go io.Copy(os.Stdout, stderr)
-
-	scanner := bufio.NewScanner(stdout)
-	//skip first 2 line
-	scanner.Scan()
-	scanner.Scan()
-
-	items := make([]Entry, 0)
-	for scanner.Scan() {
-		line := scanner.Text()
-		field := strings.Fields(line)
-		if len(field) < 9 {
-			continue
-		}
-
-		item := Entry{}
-
-		ord_mtx := strings.Split(field[0], ".")
-		item.Ord, err = strconv.Atoi(ord_mtx[0])
-		PrintErr(err)
-
-		item.Host = field[1]
-
-		lost := strings.TrimRight(field[2], "%")
-		item.Lost, err = strconv.ParseFloat(lost, 64)
-		PrintErr(err)
-
-		item.Snt, err = strconv.Atoi(field[3])
-		PrintErr(err)
-
-		item.Last, err = strconv.ParseFloat(field[4], 64)
-		PrintErr(err)
-
-		item.Avg, err = strconv.ParseFloat(field[5], 64)
-		PrintErr(err)
-
-		item.Best, err = strconv.ParseFloat(field[6], 64)
-		PrintErr(err)
-
-		item.Wrst, err = strconv.ParseFloat(field[7], 64)
-		PrintErr(err)
-
-		item.Stdev, err = strconv.ParseFloat(field[8], 64)
-		PrintErr(err)
-
-		items = append(items, item)
-
-	}
-	resultmap[s] = items
-	cmd.Wait()
-	waitgroup.Done()
-}
 
 func readfile(path *string) []byte {
 	f, err := os.Open(*path)
@@ -126,25 +37,47 @@ func parseConfigFile(path string) []string {
 	return ss
 }
 
+var defaultconf string = "dmtr.conf"
+
 func main() {
 	path := flag.String("c", "", "config file path")
 	flag.Parse()
+	if strings.EqualFold(*path, "") {
+		path = &defaultconf
+	}
+	fmt.Printf("Read config file:%s\n", *path)
 
 	var ss = parseConfigFile(*path)
+	var resultmap = dmtr.NewResultMap()
+	var waitgroup sync.WaitGroup
+	dmtr.NewExecuter(&waitgroup, ss, resultmap)
+	waitgroup.Wait()
 
-	resultmap = make(map[string][]Entry)
-	for _, s := range ss {
-		waitgroup.Add(1)
-		go run(s)
-		time.Sleep(5 * time.Second)
+	sorter := dmtr.NewSorter()
+	for k, v := range *resultmap {
+		lostsum := 0.0
+		count := 0
+		r := v[1:] //skip first row
+		for _, e := range r {
+			if e.Lost > float64(0) {
+				lostsum += e.Lost
+				count++
+			}
+		}
+		lostavg := lostsum / float64(count)
+		sorter.Add(k, lostavg)
 	}
 
-	waitgroup.Wait()
-	for k, v := range resultmap {
-		fmt.Println("-------------------------------------")
-		fmt.Println(k)
-		for _, item := range v {
-			fmt.Printf(item.String())
-		}
+	fmt.Println("=============================")
+	sort.Sort(sorter)
+	for _, item := range sorter.Sorter {
+		fmt.Printf("%s %f\n", item.Key, item.Val)
+	}
+	fmt.Println("=============================")
+	best := sorter.Sorter[0]
+	fmt.Printf("Best server info:%s\n", best.Key)
+	e := (*resultmap)[best.Key]
+	for _, row := range e {
+		fmt.Print(row.String())
 	}
 }
