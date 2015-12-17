@@ -49,7 +49,9 @@ func run(waitgroup *sync.WaitGroup, s string, result *Resultmap) {
 	stdout, err := cmd.StdoutPipe()
 	stderr, err := cmd.StderrPipe()
 	cmd.Start()
-
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	go io.Copy(os.Stdout, stderr)
 
 	scanner := bufio.NewScanner(stdout)

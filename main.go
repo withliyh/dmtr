@@ -57,6 +57,9 @@ func main() {
 	for k, v := range *resultmap {
 		lostsum := 0.0
 		count := 0
+		if len(v) < 2 {
+			continue
+		}
 		r := v[1:] //skip first row
 		for _, e := range r {
 			if e.Lost > float64(0) {
