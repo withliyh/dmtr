@@ -72,6 +72,9 @@ func main() {
 	}
 
 	fmt.Println("=============================")
+	if len(sorter.Sorter) == 0 {
+		return
+	}
 	sort.Sort(sorter)
 	for _, item := range sorter.Sorter {
 		fmt.Printf("%s %f\n", item.Key, item.Val)

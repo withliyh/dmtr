@@ -44,13 +44,15 @@ func PrintErr(err error) {
 }
 
 func run(waitgroup *sync.WaitGroup, s string, result *Resultmap) {
+	defer waitgroup.Done()
 	fmt.Println("mtr -r ", s)
 	cmd := exec.Command("mtr", "-r", s)
 	stdout, err := cmd.StdoutPipe()
 	stderr, err := cmd.StderrPipe()
-	cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		fmt.Println(err.Error())
+		return
 	}
 	go io.Copy(os.Stdout, stderr)
 
@@ -102,7 +104,6 @@ func run(waitgroup *sync.WaitGroup, s string, result *Resultmap) {
 	}
 	(*result)[s] = items
 	cmd.Wait()
-	waitgroup.Done()
 }
 func NewResultMap() *Resultmap {
 	r := make(Resultmap)
